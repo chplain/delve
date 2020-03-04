@@ -695,7 +695,7 @@ func (d *Debugger) Command(command *api.DebuggerCommand) (*api.DebuggerState, er
 	switch command.Name {
 	case api.Continue:
 		d.log.Debug("continuing")
-		err = proc.Continue(d.target)
+		err = d.target.Continue()
 	case api.Call:
 		d.log.Debugf("function call %s", command.Expr)
 		if command.ReturnInfoLoadConfig == nil {
@@ -717,7 +717,7 @@ func (d *Debugger) Command(command *api.DebuggerCommand) (*api.DebuggerState, er
 		defer func() {
 			d.target.Direction(proc.Forward)
 		}()
-		err = proc.Continue(d.target)
+		err = d.target.Continue()
 	case api.Next:
 		d.log.Debug("nexting")
 		err = d.target.Next()

@@ -71,23 +71,23 @@ func TestRestartAfterExit(t *testing.T) {
 	protest.AllowRecording(t)
 	withTestRecording("testnextprog", t, func(p *proc.Target, fixture protest.Fixture) {
 		setFunctionBreakpoint(p, t, "main.main")
-		assertNoError(proc.Continue(p), t, "Continue")
+		assertNoError(p.Continue(), t, "Continue")
 		loc, err := p.CurrentThread().Location()
 		assertNoError(err, t, "CurrentThread().Location()")
-		err = proc.Continue(p)
+		err = p.Continue()
 		if _, isexited := err.(proc.ErrProcessExited); err == nil || !isexited {
 			t.Fatalf("program did not exit: %v", err)
 		}
 
 		assertNoError(p.Restart(""), t, "Restart")
 
-		assertNoError(proc.Continue(p), t, "Continue (after restart)")
+		assertNoError(p.Continue(), t, "Continue (after restart)")
 		loc2, err := p.CurrentThread().Location()
 		assertNoError(err, t, "CurrentThread().Location() (after restart)")
 		if loc2.Line != loc.Line {
 			t.Fatalf("stopped at %d (expected %d)", loc2.Line, loc.Line)
 		}
-		err = proc.Continue(p)
+		err = p.Continue()
 		if _, isexited := err.(proc.ErrProcessExited); err == nil || !isexited {
 			t.Fatalf("program did not exit (after exit): %v", err)
 		}
@@ -98,19 +98,19 @@ func TestRestartDuringStop(t *testing.T) {
 	protest.AllowRecording(t)
 	withTestRecording("testnextprog", t, func(p *proc.Target, fixture protest.Fixture) {
 		setFunctionBreakpoint(p, t, "main.main")
-		assertNoError(proc.Continue(p), t, "Continue")
+		assertNoError(p.Continue(), t, "Continue")
 		loc, err := p.CurrentThread().Location()
 		assertNoError(err, t, "CurrentThread().Location()")
 
 		assertNoError(p.Restart(""), t, "Restart")
 
-		assertNoError(proc.Continue(p), t, "Continue (after restart)")
+		assertNoError(p.Continue(), t, "Continue (after restart)")
 		loc2, err := p.CurrentThread().Location()
 		assertNoError(err, t, "CurrentThread().Location() (after restart)")
 		if loc2.Line != loc.Line {
 			t.Fatalf("stopped at %d (expected %d)", loc2.Line, loc.Line)
 		}
-		err = proc.Continue(p)
+		err = p.Continue()
 		if _, isexited := err.(proc.ErrProcessExited); err == nil || !isexited {
 			t.Fatalf("program did not exit (after exit): %v", err)
 		}
@@ -139,7 +139,7 @@ func TestReverseBreakpointCounts(t *testing.T) {
 	protest.AllowRecording(t)
 	withTestRecording("bpcountstest", t, func(p *proc.Target, fixture protest.Fixture) {
 		endbp := setFileBreakpoint(p, t, fixture, 28)
-		assertNoError(proc.Continue(p), t, "Continue()")
+		assertNoError(p.Continue(), t, "Continue()")
 		loc, _ := p.CurrentThread().Location()
 		if loc.PC != endbp.Addr {
 			t.Fatalf("did not reach end of main.main function: %s:%d (%#x)", loc.File, loc.Line, loc.PC)
@@ -152,7 +152,7 @@ func TestReverseBreakpointCounts(t *testing.T) {
 
 	countLoop:
 		for {
-			assertNoError(proc.Continue(p), t, "Continue()")
+			assertNoError(p.Continue(), t, "Continue()")
 			loc, _ := p.CurrentThread().Location()
 			switch loc.PC {
 			case startbp.Addr:
@@ -195,7 +195,7 @@ func TestCheckpoints(t *testing.T) {
 	withTestRecording("continuetestprog", t, func(p *proc.Target, fixture protest.Fixture) {
 		// Continues until start of main.main, record output of 'when'
 		bp := setFunctionBreakpoint(p, t, "main.main")
-		assertNoError(proc.Continue(p), t, "Continue")
+		assertNoError(p.Continue(), t, "Continue")
 		when0, loc0 := getPosition(p, t)
 		t.Logf("when0: %q (%#x) %x", when0, loc0.PC, p.CurrentThread().ThreadID())
 
@@ -282,10 +282,10 @@ func TestIssue1376(t *testing.T) {
 	protest.AllowRecording(t)
 	withTestRecording("continuetestprog", t, func(p *proc.Target, fixture protest.Fixture) {
 		bp := setFunctionBreakpoint(p, t, "main.main")
-		assertNoError(proc.Continue(p), t, "Continue (forward)")
+		assertNoError(p.Continue(), t, "Continue (forward)")
 		_, err := p.ClearBreakpoint(bp.Addr)
 		assertNoError(err, t, "ClearBreakpoint")
 		assertNoError(p.Direction(proc.Backward), t, "Switching to backward direction")
-		assertNoError(proc.Continue(p), t, "Continue (backward)")
+		assertNoError(p.Continue(), t, "Continue (backward)")
 	})
 }

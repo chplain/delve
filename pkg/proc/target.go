@@ -1,6 +1,7 @@
 package proc
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -48,6 +49,146 @@ func NewTarget(p Process, disableAsyncPreempt bool) *Target {
 	return t
 }
 
+// Continue continues execution of the debugged
+// process. It will continue until it hits a breakpoint
+// or is otherwise stopped.
+func (t *Target) Continue() error {
+	if _, err := t.Valid(); err != nil {
+		return err
+	}
+	for _, thread := range t.ThreadList() {
+		thread.Common().returnValues = nil
+	}
+	t.CheckAndClearManualStopRequest()
+	defer func() {
+		// Make sure we clear internal breakpoints if we simultaneously receive a
+		// manual stop request and hit a breakpoint.
+		if t.CheckAndClearManualStopRequest() {
+			t.ClearInternalBreakpoints()
+		}
+	}()
+	for {
+		if t.CheckAndClearManualStopRequest() {
+			t.ClearInternalBreakpoints()
+			return nil
+		}
+		t.ClearAllGCache()
+		trapthread, err := t.ContinueOnce()
+		if err != nil {
+			return err
+		}
+
+		threads := t.ThreadList()
+
+		callInjectionDone, err := callInjectionProtocol(t, threads)
+		if err != nil {
+			return err
+		}
+
+		if err := pickCurrentThread(t, trapthread, threads); err != nil {
+			return err
+		}
+
+		curthread := t.CurrentThread()
+		curbp := curthread.Breakpoint()
+
+		switch {
+		case curbp.Breakpoint == nil:
+			// runtime.Breakpoint, manual stop or debugCallV1-related stop
+			recorded, _ := t.Recorded()
+			if recorded {
+				return conditionErrors(threads)
+			}
+
+			loc, err := curthread.Location()
+			if err != nil || loc.Fn == nil {
+				return conditionErrors(threads)
+			}
+			g, _ := GetG(curthread)
+			arch := t.BinInfo().Arch
+
+			switch {
+			case loc.Fn.Name == "runtime.breakpoint":
+				// In linux-arm64, PtraceSingleStep seems cannot step over BRK instruction
+				// (linux-arm64 feature or kernel bug maybe).
+				if !arch.BreakInstrMovesPC() {
+					curthread.SetPC(loc.PC + uint64(arch.BreakpointSize()))
+				}
+				// Single-step current thread until we exit runtime.breakpoint and
+				// runtime.Breakpoint.
+				// On go < 1.8 it was sufficient to single-step twice on go1.8 a change
+				// to the compiler requires 4 steps.
+				if err := stepInstructionOut(t, curthread, "runtime.breakpoint", "runtime.Breakpoint"); err != nil {
+					return err
+				}
+				return conditionErrors(threads)
+			case g == nil || t.fncallForG[g.ID] == nil:
+				// a hardcoded breakpoint somewhere else in the code (probably cgo), or manual stop in cgo
+				if !arch.BreakInstrMovesPC() {
+					bpsize := arch.BreakpointSize()
+					bp := make([]byte, bpsize)
+					_, err = t.CurrentThread().ReadMemory(bp, uintptr(loc.PC))
+					if bytes.Equal(bp, arch.BreakpointInstruction()) {
+						curthread.SetPC(loc.PC + uint64(bpsize))
+					}
+				}
+				return conditionErrors(threads)
+			}
+		case curbp.Active && curbp.Internal:
+			switch curbp.Kind {
+			case StepBreakpoint:
+				// See description of proc.(*Process).next for the meaning of StepBreakpoints
+				if err := conditionErrors(threads); err != nil {
+					return err
+				}
+				regs, err := curthread.Registers(false)
+				if err != nil {
+					return err
+				}
+				pc := regs.PC()
+				text, err := disassemble(curthread, regs, t.Breakpoints(), t.BinInfo(), pc, pc+uint64(t.BinInfo().Arch.MaxInstructionLength()), true)
+				if err != nil {
+					return err
+				}
+				// here we either set a breakpoint into the destination of the CALL
+				// instruction or we determined that the called function is hidden,
+				// either way we need to resume execution
+				if err = setStepIntoBreakpoint(t, text, SameGoroutineCondition(t.SelectedGoroutine())); err != nil {
+					return err
+				}
+			default:
+				curthread.Common().returnValues = curbp.Breakpoint.returnInfo.Collect(curthread)
+				if err := t.ClearInternalBreakpoints(); err != nil {
+					return err
+				}
+				return conditionErrors(threads)
+			}
+		case curbp.Active:
+			onNextGoroutine, err := onNextGoroutine(curthread, t.Breakpoints())
+			if err != nil {
+				return err
+			}
+			if onNextGoroutine {
+				err := t.ClearInternalBreakpoints()
+				if err != nil {
+					return err
+				}
+			}
+			if curbp.Name == UnrecoveredPanic {
+				t.ClearInternalBreakpoints()
+			}
+			return conditionErrors(threads)
+		default:
+			// not a manual stop, not on runtime.Breakpoint, not on a breakpoint, just repeat
+		}
+		if callInjectionDone {
+			// a call injection was finished, don't let a breakpoint with a failed
+			// condition or a step breakpoint shadow this.
+			return conditionErrors(threads)
+		}
+	}
+}
+
 // Next continues execution until the next source line, stepping
 // over function calls. If the end of a function is reached, Next
 // will continue to the the function return address.
@@ -64,7 +205,7 @@ func (t *Target) Next() (err error) {
 		return
 	}
 
-	return Continue(t)
+	return t.Continue()
 }
 
 // Step will continue until another source line is reached.
@@ -86,7 +227,7 @@ func (t *Target) Step() (err error) {
 		}
 	}
 
-	return Continue(t)
+	return t.Continue()
 }
 
 // StepInstruction will continue the current thread for exactly
@@ -103,7 +244,7 @@ func (t *Target) StepInstruction() (err error) {
 				SameGoroutineCondition(t.SelectedGoroutine())); err != nil {
 				return err
 			}
-			return Continue(t)
+			return t.Continue()
 		}
 		thread = g.Thread
 	}
@@ -157,7 +298,7 @@ func (t *Target) StepOut() error {
 		}
 
 		success = true
-		return Continue(t)
+		return t.Continue()
 	}
 
 	sameGCond := SameGoroutineCondition(selg)
@@ -210,7 +351,63 @@ func (t *Target) StepOut() error {
 	}
 
 	success = true
-	return Continue(t)
+	return t.Continue()
+}
+
+func conditionErrors(threads []Thread) error {
+	var condErr error
+	for _, th := range threads {
+		if bp := th.Breakpoint(); bp.Breakpoint != nil && bp.CondError != nil {
+			if condErr == nil {
+				condErr = bp.CondError
+			} else {
+				return fmt.Errorf("multiple errors evaluating conditions")
+			}
+		}
+	}
+	return condErr
+}
+
+// pick a new dbp.currentThread, with the following priority:
+// 	- a thread with onTriggeredInternalBreakpoint() == true
+// 	- a thread with onTriggeredBreakpoint() == true (prioritizing trapthread)
+// 	- trapthread
+func pickCurrentThread(dbp Process, trapthread Thread, threads []Thread) error {
+	for _, th := range threads {
+		if bp := th.Breakpoint(); bp.Active && bp.Internal {
+			return dbp.SwitchThread(th.ThreadID())
+		}
+	}
+	if bp := trapthread.Breakpoint(); bp.Active {
+		return dbp.SwitchThread(trapthread.ThreadID())
+	}
+	for _, th := range threads {
+		if bp := th.Breakpoint(); bp.Active {
+			return dbp.SwitchThread(th.ThreadID())
+		}
+	}
+	return dbp.SwitchThread(trapthread.ThreadID())
+}
+
+// stepInstructionOut repeatedly calls StepInstruction until the current
+// function is neither fnname1 or fnname2.
+// This function is used to step out of runtime.Breakpoint as well as
+// runtime.debugCallV1.
+func stepInstructionOut(dbp Process, curthread Thread, fnname1, fnname2 string) error {
+	for {
+		if err := curthread.StepInstruction(); err != nil {
+			return err
+		}
+		loc, err := curthread.Location()
+		if err != nil || loc.Fn == nil || (loc.Fn.Name != fnname1 && loc.Fn.Name != fnname2) {
+			g, _ := GetG(curthread)
+			selg := dbp.SelectedGoroutine()
+			if g != nil && selg != nil && g.ID == selg.ID {
+				selg.CurrentLoc = *loc
+			}
+			return curthread.SetCurrentBreakpoint(true)
+		}
+	}
 }
 
 // Set breakpoints at every line, and the return address. Also look for

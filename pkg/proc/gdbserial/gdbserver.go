@@ -791,7 +791,7 @@ func (p *Process) handleThreadSignals(trapthread *Thread) (trapthreadOut *Thread
 	}
 
 	if (trapthread == nil || trapthread.sig != 0) && trapthreadCandidate != nil {
-		// proc.Continue wants us to return one of the threads that we should stop
+		// Target.Continue wants us to return one of the threads that we should stop
 		// at, if the thread returned by vCont received a signal that we want to
 		// propagate back to the target thread but there were also other threads
 		// that we wish to stop at we should pick one of those.
