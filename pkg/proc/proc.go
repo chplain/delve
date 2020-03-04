@@ -143,21 +143,28 @@ func FindFunctionLocation(p Process, funcName string, lineOffset int) ([]uint64,
 	return bi.LineToPC(filename, lineno+lineOffset)
 }
 
-// Next continues execution until the next source line.
-func Next(dbp *Target) (err error) {
-	if _, err := dbp.Valid(); err != nil {
-		return err
-	}
-	if dbp.Breakpoints().HasInternalBreakpoints() {
-		return fmt.Errorf("next while nexting")
-	}
+// ErrNoSourceForPC is returned when the given address
+// does not correspond with a source file location.
+type ErrNoSourceForPC struct {
+	pc uint64
+}
 
-	if err = next(dbp, false, false); err != nil {
-		dbp.ClearInternalBreakpoints()
-		return
-	}
+func (err *ErrNoSourceForPC) Error() string {
+	return fmt.Sprintf("no source for PC %#x", err.pc)
+}
 
-	return Continue(dbp)
+// FindDeferReturnCalls will find all runtime.deferreturn locations in the function.
+// See documentation of Breakpoint.DeferCond for why this is necessary.
+func FindDeferReturnCalls(text []AsmInstruction) []uint64 {
+	const deferreturn = "runtime.deferreturn"
+	deferreturns := []uint64{}
+
+	for _, instr := range text {
+		if instr.IsCall() && instr.DestLoc != nil && instr.DestLoc.Fn != nil && instr.DestLoc.Fn.Name == deferreturn {
+			deferreturns = append(deferreturns, instr.Loc.PC)
+		}
+	}
+	return deferreturns
 }
 
 // Continue continues execution of the debugged

@@ -1485,7 +1485,7 @@ func TestPluginVariables(t *testing.T) {
 
 		assertNoError(proc.StepOut(p), t, "StepOut")
 		assertNoError(proc.StepOut(p), t, "StepOut")
-		assertNoError(proc.Next(p), t, "Next")
+		assertNoError(p.Next(), t, "Next")
 
 		// read interface variable, inside executable code, with a concrete type defined in a plugin
 		vb, err := evalVariable(p, "b", pnormalLoadConfig)

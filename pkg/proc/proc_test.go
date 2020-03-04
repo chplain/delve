@@ -436,7 +436,7 @@ func testseq2Args(wd string, args []string, buildFlags protest.BuildFlags, t *te
 				if traceTestseq2 {
 					t.Log("next")
 				}
-				assertNoError(proc.Next(p), t, "Next() returned an error")
+				assertNoError(p.Next(), t, "Next() returned an error")
 			case contStep:
 				if traceTestseq2 {
 					t.Log("step")
@@ -563,7 +563,7 @@ func TestNextConcurrent(t *testing.T) {
 			if ln != tc.begin {
 				t.Fatalf("Program not stopped at correct spot expected %d was %s:%d", tc.begin, filepath.Base(f), ln)
 			}
-			assertNoError(proc.Next(p), t, "Next() returned an error")
+			assertNoError(p.Next(), t, "Next() returned an error")
 			f, ln = assertLineNumber(p, t, tc.end, "Program did not continue to the expected location")
 			v := evalVariable(p, t, "n")
 			vval, _ := constant.Int64Val(v.Value)
@@ -601,7 +601,7 @@ func TestNextConcurrentVariant2(t *testing.T) {
 			if ln != tc.begin {
 				t.Fatalf("Program not stopped at correct spot expected %d was %s:%d", tc.begin, filepath.Base(f), ln)
 			}
-			assertNoError(proc.Next(p), t, "Next() returned an error")
+			assertNoError(p.Next(), t, "Next() returned an error")
 			var vval int64
 			for {
 				v := evalVariable(p, t, "n")
@@ -685,7 +685,7 @@ func TestNextNetHTTP(t *testing.T) {
 				t.Fatalf("Program not stopped at correct spot expected %d was %s:%d", tc.begin, filepath.Base(f), ln)
 			}
 
-			assertNoError(proc.Next(p), t, "Next() returned an error")
+			assertNoError(p.Next(), t, "Next() returned an error")
 
 			f, ln = assertLineNumber(p, t, tc.end, "Program did not continue to correct next location")
 		}
@@ -801,7 +801,7 @@ func TestCGONext(t *testing.T) {
 	withTestProcess("cgotest", t, func(p *proc.Target, fixture protest.Fixture) {
 		setFunctionBreakpoint(p, t, "main.main")
 		assertNoError(proc.Continue(p), t, "Continue()")
-		assertNoError(proc.Next(p), t, "Next()")
+		assertNoError(p.Next(), t, "Next()")
 	})
 }
 
@@ -1549,11 +1549,11 @@ func TestIssue305(t *testing.T) {
 
 		assertNoError(proc.Continue(p), t, "Continue()")
 
-		assertNoError(proc.Next(p), t, "Next() 1")
-		assertNoError(proc.Next(p), t, "Next() 2")
-		assertNoError(proc.Next(p), t, "Next() 3")
-		assertNoError(proc.Next(p), t, "Next() 4")
-		assertNoError(proc.Next(p), t, "Next() 5")
+		assertNoError(p.Next(), t, "Next() 1")
+		assertNoError(p.Next(), t, "Next() 2")
+		assertNoError(p.Next(), t, "Next() 3")
+		assertNoError(p.Next(), t, "Next() 4")
+		assertNoError(p.Next(), t, "Next() 5")
 	})
 }
 
@@ -1711,7 +1711,7 @@ func TestIssue332_Part1(t *testing.T) {
 	withTestProcess("issue332", t, func(p *proc.Target, fixture protest.Fixture) {
 		setFileBreakpoint(p, t, fixture.Source, 8)
 		assertNoError(proc.Continue(p), t, "Continue()")
-		assertNoError(proc.Next(p), t, "first Next()")
+		assertNoError(p.Next(), t, "first Next()")
 		locations, err := proc.ThreadStacktrace(p.CurrentThread(), 2)
 		assertNoError(err, t, "Stacktrace()")
 		if locations[0].Call.Fn == nil {
@@ -1760,9 +1760,9 @@ func TestIssue332_Part2(t *testing.T) {
 			t.Fatalf("Step did not skip the prologue: current pc: %x, first instruction after prologue: %x", pc, pcAfterPrologue)
 		}
 
-		assertNoError(proc.Next(p), t, "first Next()")
-		assertNoError(proc.Next(p), t, "second Next()")
-		assertNoError(proc.Next(p), t, "third Next()")
+		assertNoError(p.Next(), t, "first Next()")
+		assertNoError(p.Next(), t, "second Next()")
+		assertNoError(p.Next(), t, "third Next()")
 		err = proc.Continue(p)
 		if _, exited := err.(proc.ErrProcessExited); !exited {
 			assertNoError(err, t, "final Continue()")
@@ -1954,7 +1954,7 @@ func TestNextParked(t *testing.T) {
 
 		assertNoError(p.SwitchGoroutine(parkedg), t, "SwitchGoroutine()")
 		p.ClearBreakpoint(bp.Addr)
-		assertNoError(proc.Next(p), t, "Next()")
+		assertNoError(p.Next(), t, "Next()")
 
 		if p.SelectedGoroutine().ID != parkedg.ID {
 			t.Fatalf("Next did not continue on the selected goroutine, expected %d got %d", parkedg.ID, p.SelectedGoroutine().ID)
@@ -2625,7 +2625,7 @@ func TestIssue664(t *testing.T) {
 	withTestProcess("issue664", t, func(p *proc.Target, fixture protest.Fixture) {
 		setFileBreakpoint(p, t, fixture.Source, 4)
 		assertNoError(proc.Continue(p), t, "Continue()")
-		assertNoError(proc.Next(p), t, "Next()")
+		assertNoError(p.Next(), t, "Next()")
 		assertLineNumber(p, t, 5, "Did not continue to correct location,")
 	})
 }
@@ -2668,7 +2668,7 @@ func TestNextInDeferReturn(t *testing.T) {
 			if loc.Fn != nil && loc.Fn.Name == "main.sampleFunction" {
 				break
 			}
-			assertNoError(proc.Next(p), t, fmt.Sprintf("Next() %d", i))
+			assertNoError(p.Next(), t, fmt.Sprintf("Next() %d", i))
 		}
 	})
 }
@@ -2912,9 +2912,9 @@ func TestRecursiveNext(t *testing.T) {
 		assertNoError(proc.Continue(p), t, "Continue")
 		_, err := p.ClearBreakpoint(bp.Addr)
 		assertNoError(err, t, "ClearBreakpoint")
-		assertNoError(proc.Next(p), t, "Next 1")
-		assertNoError(proc.Next(p), t, "Next 2")
-		assertNoError(proc.Next(p), t, "Next 3")
+		assertNoError(p.Next(), t, "Next 1")
+		assertNoError(p.Next(), t, "Next 2")
+		assertNoError(p.Next(), t, "Next 3")
 		frameoff0 := getFrameOff(p, t)
 		assertNoError(proc.Step(p), t, "Step")
 		frameoff1 := getFrameOff(p, t)
@@ -2922,7 +2922,7 @@ func TestRecursiveNext(t *testing.T) {
 			t.Fatalf("did not step into function?")
 		}
 		assertLineNumber(p, t, 6, "program did not continue to expected location,")
-		assertNoError(proc.Next(p), t, "Next 4")
+		assertNoError(p.Next(), t, "Next 4")
 		assertLineNumber(p, t, 7, "program did not continue to expected location,")
 		assertNoError(proc.StepOut(p), t, "StepOut")
 		assertLineNumber(p, t, 11, "program did not continue to expected location,")
@@ -2963,7 +2963,7 @@ func TestIssue893(t *testing.T) {
 	// error, (c) program runs to completion
 	protest.AllowRecording(t)
 	withTestProcess("increment", t, func(p *proc.Target, fixture protest.Fixture) {
-		err := proc.Next(p)
+		err := p.Next()
 		if err == nil {
 			return
 		}
@@ -3155,7 +3155,7 @@ func TestIssue844(t *testing.T) {
 			Y:  &ast.BasicLit{Kind: token.INT, Value: "11"},
 		}
 		assertNoError(proc.Continue(p), t, "Continue")
-		assertNoError(proc.Next(p), t, "Next")
+		assertNoError(p.Next(), t, "Next")
 		assertLineNumber(p, t, 10, "continued to wrong location,")
 	})
 }
@@ -3521,10 +3521,10 @@ func TestIssue1101(t *testing.T) {
 	withTestProcess("issue1101", t, func(p *proc.Target, fixture protest.Fixture) {
 		setFunctionBreakpoint(p, t, "main.f")
 		assertNoError(proc.Continue(p), t, "Continue()")
-		assertNoError(proc.Next(p), t, "Next() 1")
-		assertNoError(proc.Next(p), t, "Next() 2")
+		assertNoError(p.Next(), t, "Next() 1")
+		assertNoError(p.Next(), t, "Next() 2")
 		lastCmd := "Next() 3"
-		exitErr := proc.Next(p)
+		exitErr := p.Next()
 		if exitErr == nil {
 			lastCmd = "final Continue()"
 			exitErr = proc.Continue(p)
@@ -3554,7 +3554,7 @@ func TestIssue1145(t *testing.T) {
 			p.RequestManualStop()
 		}()
 
-		assertNoError(proc.Next(p), t, "Next()")
+		assertNoError(p.Next(), t, "Next()")
 		if p.Breakpoints().HasInternalBreakpoints() {
 			t.Fatal("has internal breakpoints after manual stop request")
 		}
@@ -4064,7 +4064,7 @@ func TestNextUnknownInstr(t *testing.T) {
 	withTestProcess("nodisasm/", t, func(p *proc.Target, fixture protest.Fixture) {
 		setFunctionBreakpoint(p, t, "main.asmFunc")
 		assertNoError(proc.Continue(p), t, "Continue()")
-		assertNoError(proc.Next(p), t, "Next()")
+		assertNoError(p.Next(), t, "Next()")
 	})
 }
 
@@ -4532,7 +4532,7 @@ func TestIssue1795(t *testing.T) {
 	withTestProcessArgs("issue1795", t, ".", []string{}, protest.EnableInlining|protest.EnableOptimization, func(p *proc.Target, fixture protest.Fixture) {
 		assertNoError(proc.Continue(p), t, "Continue()")
 		assertLineNumber(p, t, 12, "wrong line number after Continue,")
-		assertNoError(proc.Next(p), t, "Next()")
+		assertNoError(p.Next(), t, "Next()")
 		assertLineNumber(p, t, 13, "wrong line number after Next,")
 	})
 	withTestProcessArgs("issue1795", t, ".", []string{}, protest.EnableInlining|protest.EnableOptimization, func(p *proc.Target, fixture protest.Fixture) {

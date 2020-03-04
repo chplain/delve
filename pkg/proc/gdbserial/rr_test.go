@@ -212,8 +212,8 @@ func TestCheckpoints(t *testing.T) {
 		}
 
 		// Move forward with next, check that the output of 'when' changes
-		assertNoError(proc.Next(p), t, "First Next")
-		assertNoError(proc.Next(p), t, "Second Next")
+		assertNoError(p.Next(), t, "First Next")
+		assertNoError(p.Next(), t, "Second Next")
 		when1, loc1 := getPosition(p, t)
 		t.Logf("when1: %q (%#x) %x", when1, loc1.PC, p.CurrentThread().ThreadID())
 		if loc0.PC == loc1.PC {
@@ -238,8 +238,8 @@ func TestCheckpoints(t *testing.T) {
 		}
 
 		// Move forward with next again, check that the output of 'when' matches
-		assertNoError(proc.Next(p), t, "First Next")
-		assertNoError(proc.Next(p), t, "Second Next")
+		assertNoError(p.Next(), t, "First Next")
+		assertNoError(p.Next(), t, "Second Next")
 		when3, loc3 := getPosition(p, t)
 		t.Logf("when3: %q (%#x)", when3, loc3.PC)
 		if loc3.PC != loc1.PC {
@@ -256,8 +256,8 @@ func TestCheckpoints(t *testing.T) {
 		p.Restart(fmt.Sprintf("c%d", cpid))
 		g, _ = proc.FindGoroutine(p, 1)
 		p.SwitchGoroutine(g)
-		assertNoError(proc.Next(p), t, "First Next")
-		assertNoError(proc.Next(p), t, "Second Next")
+		assertNoError(p.Next(), t, "First Next")
+		assertNoError(p.Next(), t, "Second Next")
 		when4, loc4 := getPosition(p, t)
 		t.Logf("when4: %q (%#x)", when4, loc4.PC)
 		if loc4.PC != loc1.PC {
