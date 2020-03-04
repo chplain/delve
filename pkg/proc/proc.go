@@ -452,7 +452,7 @@ func StepOut(dbp *Target) error {
 	}()
 
 	if topframe.Inlined {
-		if err := next(dbp, false, true); err != nil {
+		if err := next(dbp, optInlineStepout); err != nil {
 			return err
 		}
 

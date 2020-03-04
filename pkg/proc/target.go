@@ -10,6 +10,12 @@ import (
 	"github.com/go-delve/delve/pkg/dwarf/reader"
 )
 
+const (
+	optStepOver = 0
+	optStepInto = 1 << iota
+	optInlineStepout
+)
+
 // Target represents the process being debugged.
 type Target struct {
 	Process
@@ -52,7 +58,7 @@ func (t *Target) Next() (err error) {
 		return fmt.Errorf("next while nexting")
 	}
 
-	if err = next(t, false, false); err != nil {
+	if err = next(t, optStepOver); err != nil {
 		t.ClearInternalBreakpoints()
 		return
 	}
@@ -60,9 +66,31 @@ func (t *Target) Next() (err error) {
 	return Continue(t)
 }
 
+// Step will continue until another source line is reached.
+// Step will step into functions instead of stepping over them.
+func (t *Target) Step() (err error) {
+	if _, err := t.Valid(); err != nil {
+		return err
+	}
+	if t.Breakpoints().HasInternalBreakpoints() {
+		return fmt.Errorf("next while nexting")
+	}
+
+	if err = next(t, optStepInto); err != nil {
+		switch err.(type) {
+		case ErrThreadBlocked: // Noop
+		default:
+			t.ClearInternalBreakpoints()
+			return
+		}
+	}
+
+	return Continue(t)
+}
+
 // Set breakpoints at every line, and the return address. Also look for
 // a deferred function and set a breakpoint there too.
-// If stepInto is true it will also set breakpoints inside all
+// If stepInto is enabled it will also set breakpoints inside all
 // functions called on the current source line, for non-absolute CALLs
 // a breakpoint of kind StepBreakpoint is set on the CALL instruction,
 // Continue will take care of setting a breakpoint to the destination
@@ -83,13 +111,18 @@ func (t *Target) Next() (err error) {
 // where the inlining happened and the second set of breakpoints will also
 // cover the "return address".
 //
-// If inlinedStepOut is true this function implements the StepOut operation
+// If inlinedStepOut is enabled this function implements the StepOut operation
 // for an inlined function call. Everything works the same as normal except
 // when removing instructions belonging to inlined calls we also remove all
 // instructions belonging to the current inlined call.
-func next(dbp Process, stepInto, inlinedStepOut bool) error {
-	selg := dbp.SelectedGoroutine()
-	curthread := dbp.CurrentThread()
+func next(dbp Process, opts uint64) error {
+	var (
+		selg           = dbp.SelectedGoroutine()
+		curthread      = dbp.CurrentThread()
+		stepInto       = (opts & optStepInto) != 0
+		inlinedStepOut = (opts & optInlineStepout) != 0
+	)
+
 	topframe, retframe, err := topframe(selg, curthread)
 	if err != nil {
 		return err
