@@ -89,6 +89,43 @@ func (t *Target) Step() (err error) {
 	return Continue(t)
 }
 
+// StepInstruction will continue the current thread for exactly
+// one instruction. This method affects only the thread
+// associated with the selected goroutine. All other
+// threads will remain stopped.
+func (t *Target) StepInstruction() (err error) {
+	thread := t.CurrentThread()
+	g := t.SelectedGoroutine()
+	if g != nil {
+		if g.Thread == nil {
+			// Step called on parked goroutine
+			if _, err := t.SetBreakpoint(g.PC, NextBreakpoint,
+				SameGoroutineCondition(t.SelectedGoroutine())); err != nil {
+				return err
+			}
+			return Continue(t)
+		}
+		thread = g.Thread
+	}
+	t.ClearAllGCache()
+	if ok, err := t.Valid(); !ok {
+		return err
+	}
+	thread.Breakpoint().Clear()
+	err = thread.StepInstruction()
+	if err != nil {
+		return err
+	}
+	err = thread.SetCurrentBreakpoint(true)
+	if err != nil {
+		return err
+	}
+	if tg, _ := GetG(thread); tg != nil {
+		t.SetSelectedGoroutine(tg)
+	}
+	return nil
+}
+
 // StepOut will continue until the current goroutine exits the
 // function currently being executed or a deferred function is executed
 func (t *Target) StepOut() error {

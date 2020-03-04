@@ -403,43 +403,6 @@ func andFrameoffCondition(cond ast.Expr, frameoff int64) ast.Expr {
 	}
 }
 
-// StepInstruction will continue the current thread for exactly
-// one instruction. This method affects only the thread
-// associated with the selected goroutine. All other
-// threads will remain stopped.
-func StepInstruction(dbp *Target) (err error) {
-	thread := dbp.CurrentThread()
-	g := dbp.SelectedGoroutine()
-	if g != nil {
-		if g.Thread == nil {
-			// Step called on parked goroutine
-			if _, err := dbp.SetBreakpoint(g.PC, NextBreakpoint,
-				SameGoroutineCondition(dbp.SelectedGoroutine())); err != nil {
-				return err
-			}
-			return Continue(dbp)
-		}
-		thread = g.Thread
-	}
-	dbp.ClearAllGCache()
-	if ok, err := dbp.Valid(); !ok {
-		return err
-	}
-	thread.Breakpoint().Clear()
-	err = thread.StepInstruction()
-	if err != nil {
-		return err
-	}
-	err = thread.SetCurrentBreakpoint(true)
-	if err != nil {
-		return err
-	}
-	if tg, _ := GetG(thread); tg != nil {
-		dbp.SetSelectedGoroutine(tg)
-	}
-	return nil
-}
-
 // GoroutinesInfo searches for goroutines starting at index 'start', and
 // returns an array of up to 'count' (or all found elements, if 'count' is 0)
 // G structures representing the information Delve care about from the internal

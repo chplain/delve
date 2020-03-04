@@ -2497,7 +2497,7 @@ func TestStepOnCallPtrInstr(t *testing.T) {
 				found = true
 				break
 			}
-			assertNoError(proc.StepInstruction(p), t, "StepInstruction()")
+			assertNoError(p.StepInstruction(), t, "StepInstruction()")
 		}
 
 		if !found {
@@ -2988,7 +2988,7 @@ func TestStepInstructionNoGoroutine(t *testing.T) {
 	withTestProcess("increment", t, func(p *proc.Target, fixture protest.Fixture) {
 		// Call StepInstruction immediately after launching the program, it should
 		// work even though no goroutine is selected.
-		assertNoError(proc.StepInstruction(p), t, "StepInstruction")
+		assertNoError(p.StepInstruction(), t, "StepInstruction")
 	})
 }
 
