@@ -723,7 +723,7 @@ func (d *Debugger) Command(command *api.DebuggerCommand) (*api.DebuggerState, er
 		err = d.target.Next()
 	case api.Step:
 		d.log.Debug("stepping")
-		err = proc.Step(d.target)
+		err = d.target.Step()
 	case api.StepInstruction:
 		d.log.Debug("single stepping")
 		err = proc.StepInstruction(d.target)

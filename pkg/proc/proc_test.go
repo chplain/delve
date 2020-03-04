@@ -441,7 +441,7 @@ func testseq2Args(wd string, args []string, buildFlags protest.BuildFlags, t *te
 				if traceTestseq2 {
 					t.Log("step")
 				}
-				assertNoError(proc.Step(p), t, "Step() returned an error")
+				assertNoError(p.Step(), t, "Step() returned an error")
 			case contStepout:
 				if traceTestseq2 {
 					t.Log("stepout")
@@ -1669,7 +1669,7 @@ func TestStepIntoFunction(t *testing.T) {
 		// Continue until breakpoint
 		assertNoError(proc.Continue(p), t, "Continue() returned an error")
 		// Step into function
-		assertNoError(proc.Step(p), t, "Step() returned an error")
+		assertNoError(p.Step(), t, "Step() returned an error")
 		// We should now be inside the function.
 		loc, err := p.CurrentThread().Location()
 		if err != nil {
@@ -1738,7 +1738,7 @@ func TestIssue332_Part2(t *testing.T) {
 
 		// step until we enter changeMe
 		for {
-			assertNoError(proc.Step(p), t, "Step()")
+			assertNoError(p.Step(), t, "Step()")
 			locations, err := proc.ThreadStacktrace(p.CurrentThread(), 2)
 			assertNoError(err, t, "Stacktrace()")
 			if locations[0].Call.Fn == nil {
@@ -1788,7 +1788,7 @@ func TestIssue414(t *testing.T) {
 		setFileBreakpoint(p, t, fixture.Source, 9)
 		assertNoError(proc.Continue(p), t, "Continue()")
 		for {
-			err := proc.Step(p)
+			err := p.Step()
 			if err != nil {
 				if _, exited := err.(proc.ErrProcessExited); exited {
 					break
@@ -2004,7 +2004,7 @@ func TestStepParked(t *testing.T) {
 
 		assertNoError(p.SwitchGoroutine(parkedg), t, "SwitchGoroutine()")
 		p.ClearBreakpoint(bp.Addr)
-		assertNoError(proc.Step(p), t, "Step()")
+		assertNoError(p.Step(), t, "Step()")
 
 		if p.SelectedGoroutine().ID != parkedg.ID {
 			t.Fatalf("Step did not continue on the selected goroutine, expected %d got %d", parkedg.ID, p.SelectedGoroutine().ID)
@@ -2091,9 +2091,9 @@ func TestIssue573(t *testing.T) {
 	withTestProcess("issue573", t, func(p *proc.Target, fixture protest.Fixture) {
 		setFunctionBreakpoint(p, t, "main.foo")
 		assertNoError(proc.Continue(p), t, "Continue()")
-		assertNoError(proc.Step(p), t, "Step() #1")
-		assertNoError(proc.Step(p), t, "Step() #2") // Bug exits here.
-		assertNoError(proc.Step(p), t, "Step() #3") // Third step ought to be possible; program ought not have exited.
+		assertNoError(p.Step(), t, "Step() #1")
+		assertNoError(p.Step(), t, "Step() #2") // Bug exits here.
+		assertNoError(p.Step(), t, "Step() #3") // Third step ought to be possible; program ought not have exited.
 	})
 }
 
@@ -2273,7 +2273,7 @@ func TestIssue561(t *testing.T) {
 	withTestProcess("issue561", t, func(p *proc.Target, fixture protest.Fixture) {
 		setFileBreakpoint(p, t, fixture.Source, 10)
 		assertNoError(proc.Continue(p), t, "Continue()")
-		assertNoError(proc.Step(p), t, "Step()")
+		assertNoError(p.Step(), t, "Step()")
 		assertLineNumber(p, t, 5, "wrong line number after Step,")
 	})
 }
@@ -2361,7 +2361,7 @@ func TestStepConcurrentDirect(t *testing.T) {
 			if i == 0 {
 				count++
 			}
-			assertNoError(proc.Step(p), t, "Step()")
+			assertNoError(p.Step(), t, "Step()")
 		}
 
 		if count != 100 {
@@ -2417,7 +2417,7 @@ func TestStepConcurrentPtr(t *testing.T) {
 			}
 			kvals[gid] = k
 
-			assertNoError(proc.Step(p), t, "Step()")
+			assertNoError(p.Step(), t, "Step()")
 			for p.Breakpoints().HasInternalBreakpoints() {
 				if p.SelectedGoroutine().ID == gid {
 					t.Fatalf("step did not step into function call (but internal breakpoints still active?) (%d %d)", gid, p.SelectedGoroutine().ID)
@@ -2504,7 +2504,7 @@ func TestStepOnCallPtrInstr(t *testing.T) {
 			t.Fatal("Could not find CALL instruction")
 		}
 
-		assertNoError(proc.Step(p), t, "Step()")
+		assertNoError(p.Step(), t, "Step()")
 
 		if goversion.VersionAfterOrEqual(runtime.Version(), 1, 11) {
 			assertLineNumber(p, t, 6, "Step continued to wrong line,")
@@ -2612,7 +2612,7 @@ func TestIssue683(t *testing.T) {
 		for i := 0; i < 20; i++ {
 			// eventually an error about the source file not being found will be
 			// returned, the important thing is that we shouldn't panic
-			err := proc.Step(p)
+			err := p.Step()
 			if err != nil {
 				break
 			}
@@ -2916,7 +2916,7 @@ func TestRecursiveNext(t *testing.T) {
 		assertNoError(p.Next(), t, "Next 2")
 		assertNoError(p.Next(), t, "Next 3")
 		frameoff0 := getFrameOff(p, t)
-		assertNoError(proc.Step(p), t, "Step")
+		assertNoError(p.Step(), t, "Step")
 		frameoff1 := getFrameOff(p, t)
 		if frameoff0 == frameoff1 {
 			t.Fatalf("did not step into function?")
@@ -4443,10 +4443,10 @@ func TestIssue1656(t *testing.T) {
 		setFileBreakpoint(p, t, filepath.ToSlash(filepath.Join(fixture.BuildDir, "main.s")), 5)
 		assertNoError(proc.Continue(p), t, "Continue()")
 		t.Logf("step1\n")
-		assertNoError(proc.Step(p), t, "Step()")
+		assertNoError(p.Step(), t, "Step()")
 		assertLineNumber(p, t, 8, "wrong line number after first step")
 		t.Logf("step2\n")
-		assertNoError(proc.Step(p), t, "Step()")
+		assertNoError(p.Step(), t, "Step()")
 		assertLineNumber(p, t, 9, "wrong line number after second step")
 	})
 }

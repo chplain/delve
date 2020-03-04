@@ -363,28 +363,6 @@ func stepInstructionOut(dbp Process, curthread Thread, fnname1, fnname2 string) 
 	}
 }
 
-// Step will continue until another source line is reached.
-// Will step into functions.
-func Step(dbp *Target) (err error) {
-	if _, err := dbp.Valid(); err != nil {
-		return err
-	}
-	if dbp.Breakpoints().HasInternalBreakpoints() {
-		return fmt.Errorf("next while nexting")
-	}
-
-	if err = next(dbp, true, false); err != nil {
-		switch err.(type) {
-		case ErrThreadBlocked: // Noop
-		default:
-			dbp.ClearInternalBreakpoints()
-			return
-		}
-	}
-
-	return Continue(dbp)
-}
-
 // SameGoroutineCondition returns an expression that evaluates to true when
 // the current goroutine is g.
 func SameGoroutineCondition(g *G) ast.Expr {
