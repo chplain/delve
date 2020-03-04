@@ -446,7 +446,7 @@ func testseq2Args(wd string, args []string, buildFlags protest.BuildFlags, t *te
 				if traceTestseq2 {
 					t.Log("stepout")
 				}
-				assertNoError(proc.StepOut(p), t, "StepOut() returned an error")
+				assertNoError(p.StepOut(), t, "StepOut() returned an error")
 			case contContinue:
 				if traceTestseq2 {
 					t.Log("continue")
@@ -2454,7 +2454,7 @@ func TestStepOutDefer(t *testing.T) {
 
 		assertLineNumber(p, t, 9, "wrong line number")
 
-		assertNoError(proc.StepOut(p), t, "StepOut()")
+		assertNoError(p.StepOut(), t, "StepOut()")
 
 		f, l, _ := p.BinInfo().PCToLine(currentPC(p, t))
 		if f == fixture.Source || l == 6 {
@@ -2739,7 +2739,7 @@ func TestStacktraceWithBarriers(t *testing.T) {
 
 		t.Logf("stack barrier goids: %v\n", stackBarrierGoids)
 
-		assertNoError(proc.StepOut(p), t, "StepOut()")
+		assertNoError(p.StepOut(), t, "StepOut()")
 
 		gs, _, err := proc.GoroutinesInfo(p, 0, 0)
 		assertNoError(err, t, "GoroutinesInfo()")
@@ -2924,7 +2924,7 @@ func TestRecursiveNext(t *testing.T) {
 		assertLineNumber(p, t, 6, "program did not continue to expected location,")
 		assertNoError(p.Next(), t, "Next 4")
 		assertLineNumber(p, t, 7, "program did not continue to expected location,")
-		assertNoError(proc.StepOut(p), t, "StepOut")
+		assertNoError(p.StepOut(), t, "StepOut")
 		assertLineNumber(p, t, 11, "program did not continue to expected location,")
 		frameoff2 := getFrameOff(p, t)
 		if frameoff0 != frameoff2 {
@@ -3922,7 +3922,7 @@ func TestStepOutReturn(t *testing.T) {
 	withTestProcess("stepoutret", t, func(p *proc.Target, fixture protest.Fixture) {
 		setFunctionBreakpoint(p, t, "main.stepout")
 		assertNoError(proc.Continue(p), t, "Continue")
-		assertNoError(proc.StepOut(p), t, "StepOut")
+		assertNoError(p.StepOut(), t, "StepOut")
 		ret := p.CurrentThread().Common().ReturnValues(normalLoadConfig)
 		if len(ret) != 2 {
 			t.Fatalf("wrong number of return values %v", ret)

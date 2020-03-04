@@ -8,7 +8,6 @@ import (
 	"go/constant"
 	"go/token"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -402,93 +401,6 @@ func andFrameoffCondition(cond ast.Expr, frameoff int64) ast.Expr {
 		X:  cond,
 		Y:  frameoffCondition(frameoff),
 	}
-}
-
-// StepOut will continue until the current goroutine exits the
-// function currently being executed or a deferred function is executed
-func StepOut(dbp *Target) error {
-	if _, err := dbp.Valid(); err != nil {
-		return err
-	}
-	if dbp.Breakpoints().HasInternalBreakpoints() {
-		return fmt.Errorf("next while nexting")
-	}
-
-	selg := dbp.SelectedGoroutine()
-	curthread := dbp.CurrentThread()
-
-	topframe, retframe, err := topframe(selg, curthread)
-	if err != nil {
-		return err
-	}
-
-	success := false
-	defer func() {
-		if !success {
-			dbp.ClearInternalBreakpoints()
-		}
-	}()
-
-	if topframe.Inlined {
-		if err := next(dbp, optInlineStepout); err != nil {
-			return err
-		}
-
-		success = true
-		return Continue(dbp)
-	}
-
-	sameGCond := SameGoroutineCondition(selg)
-	retFrameCond := andFrameoffCondition(sameGCond, retframe.FrameOffset())
-
-	var deferpc uint64
-	if filepath.Ext(topframe.Current.File) == ".go" {
-		if topframe.TopmostDefer != nil && topframe.TopmostDefer.DeferredPC != 0 {
-			deferfn := dbp.BinInfo().PCToFunc(topframe.TopmostDefer.DeferredPC)
-			deferpc, err = FirstPCAfterPrologue(dbp, deferfn, false)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	if deferpc != 0 && deferpc != topframe.Current.PC {
-		bp, err := dbp.SetBreakpoint(deferpc, NextDeferBreakpoint, sameGCond)
-		if err != nil {
-			if _, ok := err.(BreakpointExistsError); !ok {
-				return err
-			}
-		}
-		if bp != nil {
-			// For StepOut we do not want to step into the deferred function
-			// when it's called by runtime.deferreturn so we do not populate
-			// DeferReturns.
-			bp.DeferReturns = []uint64{}
-		}
-	}
-
-	if topframe.Ret == 0 && deferpc == 0 {
-		return errors.New("nothing to stepout to")
-	}
-
-	if topframe.Ret != 0 {
-		bp, err := dbp.SetBreakpoint(topframe.Ret, NextBreakpoint, retFrameCond)
-		if err != nil {
-			if _, isexists := err.(BreakpointExistsError); !isexists {
-				return err
-			}
-		}
-		if bp != nil {
-			configureReturnBreakpoint(dbp.BinInfo(), bp, &topframe, retFrameCond)
-		}
-	}
-
-	if bp := curthread.Breakpoint(); bp.Breakpoint == nil {
-		curthread.SetCurrentBreakpoint(false)
-	}
-
-	success = true
-	return Continue(dbp)
 }
 
 // StepInstruction will continue the current thread for exactly

@@ -1483,8 +1483,8 @@ func TestPluginVariables(t *testing.T) {
 		assertNoError(err, t, "Eval(str)")
 		assertVariable(t, vstr, varTest{"str", true, `"success"`, ``, `string`, nil})
 
-		assertNoError(proc.StepOut(p), t, "StepOut")
-		assertNoError(proc.StepOut(p), t, "StepOut")
+		assertNoError(p.StepOut(), t, "StepOut")
+		assertNoError(p.StepOut(), t, "StepOut")
 		assertNoError(p.Next(), t, "Next")
 
 		// read interface variable, inside executable code, with a concrete type defined in a plugin
